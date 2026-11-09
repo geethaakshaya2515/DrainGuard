@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import subprocess
 from pathlib import Path
 
 st.set_page_config(page_title='DrainGuard | Smart Drainage Monitoring', page_icon='🌊', layout='wide')
@@ -29,7 +30,58 @@ def sensors():
 @st.cache_data(ttl=1)
 def predictions():
     return pd.read_csv(PREDICTIONS_PATH) if PREDICTIONS_PATH.exists() else pd.DataFrame()
+def restart_simulation():
+    """Restart iFogSim and clear all generated simulation data."""
 
+    # Stop only the DrainGuard iFogSim Java process
+    subprocess.run(
+        ['pkill', '-f', 'org.fog.test.perfeval.DrainGuardFogApp'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False
+    )
+
+    time.sleep(1)
+
+    # Clear old simulation data
+    for path in (SENSOR_PATH, PREDICTIONS_PATH):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+
+    # Start a fresh iFogSim process
+    log_file = open('/tmp/ifogsim.log', 'w')
+
+    subprocess.Popen(
+        [
+            'java',
+            '-cp',
+            'bin:jars/*:jars/commons-math3-3.5/commons-math3-3.5.jar',
+            'org.fog.test.perfeval.DrainGuardFogApp'
+        ],
+        cwd=str(BASE_DIR.parent),
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        start_new_session=True
+    )
+
+    sensors.clear()
+    predictions.clear()
+
+
+st.sidebar.markdown('---')
+
+if st.sidebar.button(
+    '🔄 Restart Simulation from Cycle 1',
+    use_container_width=True
+):
+    restart_simulation()
+    st.sidebar.success(
+        'iFogSim restarted. Starting from Cycle 1...'
+    )
+    time.sleep(2)
+    st.rerun()
 def risk_color(r):
     return {'Critical':'#ef4444','High':'#f97316','Moderate':'#eab308','Normal':'#22c55e'}.get(r,'#94a3b8')
 
