@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+sensor_inputs.csv
+ml_predictions.csv
